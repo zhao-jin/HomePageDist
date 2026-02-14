@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Contact // Cyberpunk</title>
+  <style>
+    :root{
+      --neon:#00f5ff;
+      --pink:#ff2bd6;
+      --green:#00ff66;
+      --text:#eaf6ff;
+      --muted:#9fb3c8;
+    }
+    *{box-sizing:border-box}
+    html,body{
+      height:100%; margin:0;
+      background: transparent;   /* 背景透明 */
+      color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei";
+      overflow:hidden;
+    }
+
+    /* 背景动效层：透明叠加（不铺底色） */
+    canvas{position:fixed; inset:0; width:100%; height:100%; display:block; background:transparent;}
+    #fluid{ z-index:0; }
+    #matrix{
+      z-index:1;
+      mix-blend-mode: screen;
+      opacity:.75;
+      filter: contrast(1.25) saturate(1.35);
+    }
+
+    /* 赛博氛围：发光/暗角/扫描线（都不填充底色） */
+    .vignette{
+      position:fixed; inset:0; z-index:2; pointer-events:none;
+      background:
+        radial-gradient(1200px 700px at 70% 25%, rgba(0,245,255,.14), transparent 60%),
+        radial-gradient(900px 600px at 20% 78%, rgba(255,43,214,.14), transparent 62%),
+        radial-gradient(closest-side at 50% 50%, transparent 60%, rgba(0,0,0,.55) 100%);
+      opacity:.95;
+    }
+    .scanlines{
+      position:fixed; inset:0; z-index:2; pointer-events:none;
+      background:repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,.06),
+        rgba(255,255,255,.06) 1px,
+        rgba(0,0,0,0) 3px,
+        rgba(0,0,0,0) 6px
+      );
+      opacity:.13;
+    }
+    .glowFog{
+      position:fixed; inset:-20%; z-index:2; pointer-events:none;
+      background:
+        radial-gradient(closest-side at 30% 35%, rgba(0,255,102,.08), transparent 62%),
+        radial-gradient(closest-side at 75% 60%, rgba(0,245,255,.08), transparent 65%),
+        radial-gradient(closest-side at 55% 15%, rgba(255,43,214,.06), transparent 62%);
+      filter: blur(8px);
+      opacity:.9;
+      transform: translateZ(0);
+      animation:fog 6s ease-in-out infinite alternate;
+    }
+    @keyframes fog{
+      from{ transform: translate3d(-1.5%, -1%, 0) scale(1.02); }
+      to{ transform: translate3d(1.5%, 1%, 0) scale(1.06); }
+    }
+
+    .wrap{
+      position:fixed; inset:0; z-index:3;
+      display:grid; place-items:center;
+      padding:24px;
+    }
+
+    /* 内容：极简 + 玻璃（透明底，靠边框/发光支撑） */
+    .card{
+      width:min(760px, 92vw);
+      padding:22px 22px 18px;
+      border-radius:18px;
+
+      background: rgba(0,0,0,.18);  /* 轻薄玻璃（不是页面背景） */
+      border:1px solid rgba(0,245,255,.38);
+      box-shadow:
+        0 0 0 1px rgba(255,43,214,.14) inset,
+        0 18px 80px rgba(0,0,0,.55),
+        0 0 40px rgba(0,245,255,.14);
+      backdrop-filter: blur(12px);
+
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      text-align:center;
+      gap:14px;
+
+      position:relative;
+      overflow:hidden;
+    }
+    .card:before{
+      content:"";
+      position:absolute; inset:-2px;
+      background: linear-gradient(90deg,
+        rgba(0,245,255,0),
+        rgba(0,245,255,.22),
+        rgba(255,43,214,.16),
+        rgba(0,245,255,0)
+      );
+      transform: translateX(-40%);
+      animation: sweep 2.8s linear infinite;
+      pointer-events:none;
+    }
+    @keyframes sweep{ to{ transform: translateX(40%);} }
+
+    .top{ display:flex; flex-direction:column; align-items:center; gap:10px; position:relative; z-index:1; }
+    .avatar{
+      width:98px; height:98px; border-radius:18px;
+      border:1px solid rgba(0,245,255,.62);
+      box-shadow:
+        0 0 0 2px rgba(255,43,214,.10),
+        0 0 26px rgba(0,245,255,.26);
+      overflow:hidden;
+      background: rgba(0,0,0,.12);
+    }
+    .avatar img{ width:100%; height:100%; object-fit:cover; display:block; filter:contrast(1.12) saturate(1.12); }
+
+    h1{
+      margin:0;
+      font-size:18px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      text-shadow:0 0 14px rgba(0,245,255,.22);
+    }
+    .subtitle{
+      margin:0;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.55;
+    }
+
+    .grid{
+      width:min(580px, 100%);
+      display:grid;
+      grid-template-columns: 90px 1fr;
+      gap:10px 14px;
+      padding:12px;
+      border-radius:14px;
+      border:1px solid rgba(0,245,255,.18);
+      background: rgba(0,0,0,.14);
+      position:relative; z-index:1;
+    }
+    .label{
+      color: rgba(0,245,255,.9);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+      display:flex; align-items:center; justify-content:flex-end;
+    }
+    .value{
+      display:flex; align-items:center; gap:10px;
+      min-width:0;
+      justify-content:flex-start;
+    }
+    .value code{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      color:var(--text);
+      background: rgba(0,0,0,.26);
+      border:1px solid rgba(0,245,255,.22);
+      padding:6px 10px;
+      border-radius:10px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      box-shadow:0 0 18px rgba(0,245,255,.10);
+      max-width:100%;
+    }
+    .btn{
+      border:1px solid rgba(255,43,214,.38);
+      background: rgba(255,43,214,.12);
+      color:var(--text);
+      padding:6px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      font-size:12px;
+      letter-spacing:.04em;
+      transition:.15s ease;
+      user-select:none;
+      flex:0 0 auto;
+    }
+    .btn:hover{ transform: translateY(-1px); box-shadow:0 0 22px rgba(255,43,214,.18); }
+    .btn:active{ transform: translateY(0); }
+
+    .qrBox{
+      width:min(580px, 100%);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:10px;
+      padding:12px;
+      border-radius:14px;
+      border:1px dashed rgba(0,245,255,.24);
+      background: rgba(0,0,0,.10);
+      position:relative; z-index:1;
+    }
+    .qr{
+      width:188px; height:188px;
+      border-radius:14px;
+      border:1px solid rgba(0,255,102,.46);
+      background: rgba(0,0,0,.22);
+      box-shadow: 0 0 28px rgba(0,255,102,.12);
+      overflow:hidden;
+      position:relative;
+    }
+    .qr img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .qr:after{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        radial-gradient(96px 96px at 30% 30%, rgba(0,255,102,.18), transparent 60%),
+        linear-gradient(180deg, rgba(0,245,255,.10), transparent 45%, rgba(255,43,214,.08));
+      pointer-events:none;
+      mix-blend-mode:screen;
+    }
+    .hint{ font-size:12px; color:var(--muted); line-height:1.6; }
+
+    .footer{
+      font-size:12px;
+      color: rgba(159,179,200,.88);
+      letter-spacing:.04em;
+      position:relative; z-index:1;
+    }
+
+    @media (max-width:520px){
+      .grid{ grid-template-columns: 1fr; }
+      .label{ justify-content:center; }
+      .value{ justify-content:center; flex-wrap:wrap; }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="fluid"></canvas>
+  <canvas id="matrix"></canvas>
+
+  <div class="glowFog"></div>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+
+  <div class="wrap">
+    <section class="card" aria-label="contact">
+      <div class="top">
+        <div class="avatar">
+          <!-- 替换头像 -->
+          <img src="assets/avatar.jpg" alt="avatar">
+        </div>
+        <div>
+          <h1>CONTACT TERMINAL</h1>
+          <p class="subtitle">Trust in Math • Matrix Revolutions • Entrophy-- </p>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="label">Email</div>
+        <div class="value">
+          <code id="email">zhaochief@gmail.com</code>
+          <button class="btn" data-copy="#email">COPY</button>
+        </div>
+
+        <div class="label">QQ</div>
+        <div class="value">
+          <code id="qq">54494222</code>
+          <button class="btn" data-copy="#qq">COPY</button>
+        </div>
+
+        <div class="label">WeChat</div>
+        <div class="value">
+          <code id="wechat">zhao_jin</code>
+          <button class="btn" data-copy="#wechat">COPY</button>
+        </div>
+      </div>
+
+      <div class="qrBox">
+        <div class="qr" title="WeChat QR">
+          <!-- 同目录放 wechat-qr.png -->
+          <img src="assets/wechat.jpg" alt="WeChat QR Code">
+        </div>
+        <div class="hint">扫码添加微信（二维码失效可用微信号添加）</div>
+      </div>
+
+      <div class="footer">Signal locked • Neon channel open</div>
+    </section>
+  </div>
+
+  <!-- WebGL-Fluid-Simulation（需联网；建议用本地服务器打开） -->
+  <script src="https://cdn.jsdelivr.net/gh/PavelDoGreat/WebGL-Fluid-Simulation@master/dat.gui.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/PavelDoGreat/WebGL-Fluid-Simulation@master/script.js"></script>
+
+  <!-- Matrix：更“炸裂”的密度/速度/拖影 -->
+  <script>
+    const m = document.getElementById('matrix');
+    const ctx = m.getContext('2d', { alpha:true });
+
+    const chars = "アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789$#@%&*+-=<>/\\";
+    let w,h,cols,drops,fontSize;
+
+    function resize(){
+      const dpr = devicePixelRatio || 1;
+      w = m.width  = Math.floor(innerWidth  * dpr);
+      h = m.height = Math.floor(innerHeight * dpr);
+      fontSize = Math.max(14, Math.floor(18 * dpr));
+      cols = Math.floor(w / fontSize);
+      drops = new Array(cols).fill(0).map(()=> (Math.random()*h)/fontSize);
+      ctx.font = `${fontSize}px ui-monospace, monospace`;
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    function draw(){
+      // 更长拖影
+      ctx.fillStyle = "rgba(0,0,0,0.06)";
+      ctx.fillRect(0,0,w,h);
+
+      for(let i=0;i<cols;i++){
+        const x = i * fontSize;
+        const y = drops[i] * fontSize;
+
+        // 头部高亮 + 霓虹偏色
+        const head = Math.random() < 0.06;
+        ctx.fillStyle = head ? "rgba(0,245,255,0.92)" : "rgba(0,255,102,0.82)";
+        if (Math.random() < 0.012) ctx.fillStyle = "rgba(255,43,214,0.86)";
+
+        const t = chars[(Math.random()*chars.length)|0];
+        ctx.fillText(t, x, y);
+
+        drops[i] += 1.15 + Math.random()*1.35; // 更快更猛
+        if (y > h && Math.random() > 0.975) drops[i] = 0;
+      }
+      requestAnimationFrame(draw);
+    }
+    draw();
+  </script>
+
+  <!-- Copy -->
+  <script>
+    document.querySelectorAll('[data-copy]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const el = document.querySelector(btn.getAttribute('data-copy'));
+        const text = el?.textContent?.trim() || "";
+        try{
+          await navigator.clipboard.writeText(text);
+          const old = btn.textContent;
+          btn.textContent = "COPIED";
+          setTimeout(()=>btn.textContent=old, 900);
+        }catch(e){
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+      });
+    });
+  </script>
+
+  <!-- 增强“炸裂感”：自动注入涡旋 + 脉冲点击 -->
+  <script>
+    (function fluidPunch(){
+      const canvas = document.getElementById('fluid');
+      let t = 0;
+
+      function pulse(x,y){
+        // 轻微多次 move 形成强扰动
+        for(let k=0;k<6;k++){
+          canvas.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: x + (Math.random()-0.5)*18,
+            clientY: y + (Math.random()-0.5)*18,
+            pointerId: 1
+          }));
+        }
+      }
+
+      // 自动绕场旋涡
+      function tick(){
+        t += 0.016;
+        const cx = 0.5 + 0.22*Math.sin(t*0.9);
+        const cy = 0.5 + 0.22*Math.cos(t*0.7);
+        pulse(cx*innerWidth, cy*innerHeight);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+
+      // 用户点击：爆炸扰动
+      addEventListener('pointerdown', (e)=> pulse(e.clientX, e.clientY), {passive:true});
+    })();
+  </script>
+</body>
+</html>
